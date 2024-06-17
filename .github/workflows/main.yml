@@ -1,0 +1,45 @@
+# web-deploy = https://github.com/marketplace/actions/ftp-deploy-forked
+# ssh_job = https://github.com/marketplace/actions/ssh-push
+on:
+  push:
+    branches:
+      - main
+name: 🚀 Deploy website on push
+jobs:
+  api-deploy:
+    name: 🎉 Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🚚 Get latest code
+        uses: actions/checkout@v4
+
+      - name: 📂 Sync files
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ../
+
+  ssh_job:
+    needs: api-deploy
+    runs-on: ubuntu-latest
+    name: Deployment Job
+    steps:
+      - uses: actions/checkout@v4
+      - name: SSH
+        uses: ErenKrt/ssh-push@main
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          source: ../
+          destination: "SSH_tasker.zip"
+          scripts: |
+            cd ../
+            cd ./domains/tasker.girao.dev
+            php composer.phar install -n
+            php composer.phar update -n
+            php artisan migrate -n
+            php artisan optimize:clear -q -v

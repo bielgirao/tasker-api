@@ -38,7 +38,7 @@ jobs:
           destination: "SSH_tasker.zip"
           scripts: |
             cd ../
-            cd ./domains/tasker.girao.dev
+            cd ./domains/tasker-api.girao.dev
             php composer.phar install -n
             php composer.phar update -n
             php artisan migrate -n

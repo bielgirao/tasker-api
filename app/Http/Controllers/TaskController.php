@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\API\ApiError;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Task;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,24 +25,22 @@ class TaskController extends Controller
 
     public function index(): JsonResponse
     {
-        $data = $this->task->all()
-            ->map(function($task) {
-                $task->deadline = date('d-m-Y', strtotime($task->deadline));
-                return $task;
-            });
+        $data = Auth::user()->tasks->map(function($task) {
+            $task->deadline = date('d-m-Y', strtotime($task->deadline));
+            return $task;
+        });
         return response()->json($data);
     }
 
     public function show($id): JsonResponse
     {
-        $task = $this->task->find($id);
+        $task = Auth::user()->tasks()->find($id);
 
-        if(!$task){
-            return response()->json(ApiError::errorMessage('Task not found', 4040),404);
+        if (!$task) {
+            return response()->json(ApiError::errorMessage('Task not found', 4040), 404);
         }
 
-        $data = $task;
-        return response()->json($data);
+        return response()->json($task);
     }
 
 
@@ -49,16 +48,14 @@ class TaskController extends Controller
     {
         try {
             $request->validate([
-                'name' => 'required|max:25',
+                'name' => 'required|string|max:25',
                 'status' => 'required|in:doing,done,to-do',
-                'description' => 'nullable|max:250',
+                'description' => 'nullable|string|max:250',
                 'deadline' => 'required|date',
             ]);
 
-            $taskData = $request->all();
-            $this->task->create($taskData);
-
-            return response()->json(['msg'=>'Task created successfully!']);
+            $task = Auth::user()->tasks()->create($request->all());
+            return response()->json($task, 201);
         } catch (Exception $e){
             if(config('app.debug')) {
                 return response()->json(ApiError::errorMessage($e->getMessage(),1010), 500);
@@ -70,6 +67,12 @@ class TaskController extends Controller
     public function update(Request $request, $id): JsonResponse
     {
         try {
+            $task = Auth::user()->tasks()->find($id);
+
+            if (!$task) {
+                return response()->json(ApiError::errorMessage('Task not found or you do not have permission to update this task.', 4040), 404);
+            }
+
             $request->validate([
                 'name' => 'required|max:25',
                 'status' => 'required|in:doing,done,to-do',
@@ -77,11 +80,14 @@ class TaskController extends Controller
                 'deadline' => 'required|date',
             ]);
 
-            $taskData = $request->all();
-            $product = $this->task->find($id);
-            $product->update($taskData);
+            $task->update($request->all());
 
-            $return = ['data' => ['msg' => 'Task updated successfully!']];
+            $return = [
+                'data' => [
+                    'msg' => 'Task updated successfully!',
+                    'task' => $task
+                ]
+            ];
             return response()->json($return, 201);
         } catch (Exception $e) {
             if(config('app.debug')) {
@@ -91,17 +97,51 @@ class TaskController extends Controller
         }
     }
 
+    public function updateStatus(Request $request, $id): JsonResponse
+    {
+        try {
+            $request->validate([
+                'status' => 'required|in:doing,done,to-do',
+            ]);
+
+            $task = Auth::user()->tasks()->find($id);
+
+            if (!$task) {
+                return response()->json(ApiError::errorMessage('Task not found or you do not have permission to update this task.', 4040), 404);
+            }
+
+            $task->status = $request->status;
+            $task->save();
+
+            return response()->json([
+                'message' => 'Task status updated successfully',
+                'task' => $task
+            ], 200);
+        } catch (Exception $e) {
+            if (config('app.debug')) {
+                return response()->json(ApiError::errorMessage($e->getMessage(), 1010), 500);
+            }
+            return response()->json(ApiError::errorMessage('There was an error updating the task status.', 1011), 500);
+        }
+    }
+
     public function delete($id): JsonResponse
     {
         try {
-            $task =$this->task->find($id);
-            if(!$task){
-                return response()->json(ApiError::errorMessage('Task not found.', 4040),404);
+            $task = Auth::user()->tasks()->find($id);
+
+            if (!$task) {
+                return response()->json(ApiError::errorMessage('Task not found or you do not have permission to delete this task.', 4040), 404);
             }
 
             $task->delete();
 
-            $return = ['data' => ['msg' => 'Task ' . $task->name . ' deleted successfully!']];
+            $return = [
+                'data' => [
+                    'msg' => 'Task ' . $task->name . ' deleted successfully!',
+                    'task'=> $task
+                ]
+            ];
             return response()->json($return);
         } catch (Exception $e) {
             if(config('app.debug')) {

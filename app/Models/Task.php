@@ -13,9 +13,14 @@ class Task extends Model
         'name',
         'status',
         'deadline',
-        'description'
+        'description',
+        'user_id'
     ];
 
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 
     // Mutator to change dates to laravel format
     public function setDeadlineAttribute($value): void
